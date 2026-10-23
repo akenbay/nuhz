@@ -1,0 +1,71 @@
+@import "tailwindcss";
+@import "@fontsource-variable/onest";
+@import "@fontsource/unbounded/600.css";
+@import "@fontsource/unbounded/700.css";
+
+@theme {
+  --color-backdrop: #e9eee8;
+  --color-ink: #17231f;
+  --color-muted: #5b6b65;
+  --color-line: #cfd9d1;
+  --color-bubble: #ffffff;
+  --color-asked: #d6e4da;
+  --color-accent: #0e6a5a;
+  --color-good: #2f7d4a;
+  --color-meh: #a07a16;
+  --color-bad: #b2412e;
+
+  --font-sans: "Onest Variable", system-ui, sans-serif;
+  --font-display: "Unbounded", "Onest Variable", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-backdrop: #121a17;
+    --color-ink: #e6ede9;
+    --color-muted: #9aaba4;
+    --color-line: #2a3833;
+    --color-bubble: #1c2723;
+    --color-asked: #24372f;
+    --color-accent: #5cc4ae;
+    --color-good: #6cc28a;
+    --color-meh: #d8b04a;
+    --color-bad: #e27a66;
+  }
+}
+
+html {
+  background: var(--color-backdrop);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+input[type="search"]::-webkit-search-cancel-button {
+  filter: grayscale(1);
+  opacity: 0.5;
+}

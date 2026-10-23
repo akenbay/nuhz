@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+.env*
+# Pipeline inputs/intermediates: never commit the raw export
+result.json
+reviews.jsonl
+threads.jsonl
+tagged.jsonl
+reviews.csv
