@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import ReviewList from "@/components/ReviewList";
 import SearchBox from "@/components/SearchBox";
 import SentimentBar from "@/components/SentimentBar";
-import { courseSlug, getProfessor, isPartialName, professors, reviewsForProfessor, topTags } from "@/lib/data";
+import { courseSlug, getProfessor, isPartialName, professors, reviewsForProfessor } from "@/lib/data";
 
 export const dynamicParams = false;
 
@@ -22,11 +22,12 @@ export default async function ProfessorPage({ params }: { params: Promise<{ id: 
   if (!p) notFound();
   const list = reviewsForProfessor(p.id);
   const partial = isPartialName(p.name);
+
   const facetCounts = new Map<string, number>();
   for (const r of list) if (r.course) facetCounts.set(r.course, (facetCounts.get(r.course) ?? 0) + 1);
   const facets = [...facetCounts.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, label: value, count }));
   const linkFor = Object.fromEntries(p.courses.map((c) => [c, { href: `/c/${courseSlug(c)}/`, label: c }]));
-  const tags = topTags(list);
+
   const seen = new Set([p.name.toLowerCase()]);
   const aliases = p.aliases.filter((a) => {
     const k = a.trim().toLowerCase();
@@ -34,64 +35,53 @@ export default async function ProfessorPage({ params }: { params: Promise<{ id: 
     seen.add(k);
     return true;
   });
+  const pos = p.sentiment.positive ?? 0;
 
   return (
     <>
-      <div className="mt-6 max-w-sm">
+      <div className="mt-5">
         <SearchBox size="small" />
       </div>
-      <header className="pt-12 pb-8">
-        <h1 className="font-display text-[clamp(2rem,7vw,3.5rem)] font-bold leading-[1.02] break-words">{p.name}</h1>
+
+      <header className="pt-10 pb-6">
+        <h1 className="text-[clamp(1.9rem,6vw,2.6rem)] font-semibold leading-tight tracking-tight">{p.name}</h1>
+        <p className="mt-2 text-muted">
+          {list.length} {list.length === 1 ? "review" : "reviews"}
+          {p.courses.length > 0 && (
+            <>
+              {" "}in{" "}
+              {p.courses.slice(0, 4).map((c, i, arr) => (
+                <span key={c}>
+                  <Link href={`/c/${courseSlug(c)}/`} className="text-accent hover:underline">
+                    {c}
+                  </Link>
+                  {i < arr.length - 1 ? ", " : ""}
+                </span>
+              ))}
+              {p.courses.length > 4 ? ` and ${p.courses.length - 4} more` : ""}
+            </>
+          )}
+        </p>
         {aliases.length > 0 && (
-          <p className="mt-3 max-w-[60ch] text-muted">Also written as {aliases.slice(0, 8).join(", ")}</p>
+          <p className="mt-1 truncate text-sm text-muted/80" title={aliases.join(", ")}>
+            Also written as {aliases.join(", ")}
+          </p>
         )}
         {partial && (
-          <p className="mt-4 max-w-[60ch] rounded-xl bg-asked px-4 py-3 text-[15px]">
-            People only wrote a first name here, so this page may mix up more than one person with the same name.
-            Check the course on each review.
+          <p className="mt-4 text-sm text-muted">
+            Only a first name was used for this person, so these reviews may cover more than one professor.
           </p>
         )}
       </header>
 
-      <section className="grid gap-8 border-y border-line py-7 sm:grid-cols-[1.2fr_1fr]">
-        <div>
-          <h2 className="mb-3 text-base font-semibold">
-            {list.length} {list.length === 1 ? "review" : "reviews"}
-          </h2>
-          <SentimentBar counts={p.sentiment} />
-        </div>
-        <div className="space-y-5">
-          {p.courses.length > 0 && (
-            <div>
-              <h2 className="mb-2 text-base font-semibold">Courses</h2>
-              <p className="flex flex-wrap gap-2">
-                {p.courses.map((c) => (
-                  <Link key={c} href={`/c/${courseSlug(c)}/`} className="font-display text-sm font-semibold text-accent hover:underline">
-                    {c}
-                  </Link>
-                ))}
-              </p>
-            </div>
-          )}
-          {tags.length > 0 && (
-            <div>
-              <h2 className="mb-2 text-base font-semibold">What comes up</h2>
-              <p className="text-[15px] text-muted">
-                {tags.map(([t, n], i) => (
-                  <span key={t}>
-                    <span className="text-ink">{t}</span> <span className="tabular-nums">{n}</span>
-                    {i < tags.length - 1 ? ", " : ""}
-                  </span>
-                ))}
-              </p>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <div className="mt-8">
-        <ReviewList reviews={list} facets={facets} facetName="course" linkFor={linkFor} />
+      <div className="mb-6 max-w-md">
+        <p className="mb-2 font-medium">
+          {list.length ? Math.round((pos / list.length) * 100) : 0}% of reviews are positive
+        </p>
+        <SentimentBar counts={p.sentiment} />
       </div>
+
+      <ReviewList reviews={list} facets={facets} facetName="course" linkFor={linkFor} />
     </>
   );
 }

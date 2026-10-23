@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import ReviewList from "@/components/ReviewList";
 import SearchBox from "@/components/SearchBox";
 import SentimentBar from "@/components/SentimentBar";
-import { courses, courseSlug, getCourse, getProfessor, reviewsForCourse, topTags } from "@/lib/data";
+import { courses, courseSlug, getCourse, getProfessor, reviewsForCourse, type Sentiment } from "@/lib/data";
 
 export const dynamicParams = false;
 
@@ -21,77 +21,75 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
   const c = getCourse((await params).slug);
   if (!c) notFound();
   const list = reviewsForCourse(c.code);
-  const counts = new Map<string, number>();
-  for (const r of list) if (r.professorId) counts.set(r.professorId, (counts.get(r.professorId) ?? 0) + 1);
-  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  const facets = ranked.map(([id, count]) => ({ value: id, label: getProfessor(id)?.name ?? id, count }));
+
+  // Per-professor sentiment within this course only.
+  const byProf = new Map<string, Partial<Record<Sentiment, number>>>();
+  for (const r of list) {
+    if (!r.professorId) continue;
+    const s = byProf.get(r.professorId) ?? {};
+    s[r.sentiment] = (s[r.sentiment] ?? 0) + 1;
+    byProf.set(r.professorId, s);
+  }
+  const total = (s: Partial<Record<Sentiment, number>>) => (s.positive ?? 0) + (s.mixed ?? 0) + (s.negative ?? 0);
+  const ranked = [...byProf.entries()].sort((a, b) => total(b[1]) - total(a[1]));
+  const facets = ranked.map(([id, s]) => ({ value: id, label: getProfessor(id)?.name ?? id, count: total(s) }));
   const linkFor = Object.fromEntries(ranked.map(([id]) => [id, { href: `/p/${id}/`, label: getProfessor(id)?.name ?? id }]));
-  const generalCount = list.filter((r) => !r.professorId).length;
-  const tags = topTags(list);
-  const sameDept = courses.filter((x) => x.dept === c.dept && x.code !== c.code).slice(0, 8);
+  const sameDept = courses.filter((x) => x.dept === c.dept && x.code !== c.code && /\d/.test(x.code)).slice(0, 10);
 
   return (
     <>
-      <div className="mt-6 max-w-sm">
+      <div className="mt-5">
         <SearchBox size="small" />
       </div>
-      <header className="pt-12 pb-8">
-        <h1 className="font-display text-[clamp(3rem,13vw,6rem)] font-bold leading-none">{c.code}</h1>
+
+      <header className="pt-10 pb-6">
+        <h1 className="text-[clamp(2.2rem,8vw,3.2rem)] font-semibold leading-none tracking-tight">{c.code}</h1>
+        <p className="mt-3 text-muted">
+          {list.length} {list.length === 1 ? "review" : "reviews"}, {ranked.length}{" "}
+          {ranked.length === 1 ? "professor" : "professors"} mentioned
+        </p>
       </header>
 
-      <section className="grid gap-8 border-y border-line py-7 sm:grid-cols-[1.2fr_1fr]">
-        <div>
-          <h2 className="mb-3 text-base font-semibold">
-            {list.length} {list.length === 1 ? "review" : "reviews"}
-            {generalCount > 0 && <span className="font-normal text-muted">, {generalCount} about the course itself</span>}
-          </h2>
-          <SentimentBar counts={c.sentiment} />
-          {tags.length > 0 && (
-            <p className="mt-5 text-[15px] text-muted">
-              {tags.map(([t, n], i) => (
-                <span key={t}>
-                  <span className="text-ink">{t}</span> <span className="tabular-nums">{n}</span>
-                  {i < tags.length - 1 ? ", " : ""}
-                </span>
-              ))}
-            </p>
-          )}
-        </div>
-        {ranked.length > 0 && (
-          <div>
-            <h2 className="mb-2 text-base font-semibold">Professors mentioned</h2>
-            <ul>
-              {ranked.slice(0, 10).map(([id, n]) => {
-                const p = getProfessor(id);
-                if (!p) return null;
-                const s = p.sentiment;
-                const tot = (s.positive ?? 0) + (s.mixed ?? 0) + (s.negative ?? 0);
-                return (
-                  <li key={id} className="flex items-baseline justify-between gap-3 border-b border-line py-2 last:border-0">
-                    <Link href={`/p/${id}/`} className="font-medium hover:text-accent">
-                      {p.name}
-                    </Link>
-                    <span className="shrink-0 text-sm tabular-nums text-muted">
-                      {n} here, {tot ? Math.round(((s.positive ?? 0) / tot) * 100) : 0}% positive overall
+      {ranked.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-1 font-medium">Professors</h2>
+          <ul>
+            {ranked.slice(0, 8).map(([id, s]) => {
+              const p = getProfessor(id);
+              if (!p) return null;
+              const n = total(s);
+              return (
+                <li key={id}>
+                  <Link
+                    href={`/p/${id}/`}
+                    className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 border-b border-line py-2.5 hover:text-accent sm:grid-cols-[1fr_8rem_auto]"
+                  >
+                    <span className="truncate">{p.name}</span>
+                    <span className="col-span-2 row-start-2 sm:col-span-1 sm:row-start-auto">
+                      <SentimentBar counts={s} compact />
                     </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-      </section>
+                    <span className="text-sm tabular-nums text-muted">
+                      {n} {n === 1 ? "review" : "reviews"}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          {ranked.length > 8 && (
+            <p className="mt-2 text-sm text-muted">{ranked.length - 8} more in the filter below.</p>
+          )}
+        </section>
+      )}
 
-      <div className="mt-8">
-        <ReviewList reviews={list} facets={facets} facetName="professor" linkFor={linkFor} />
-      </div>
+      <ReviewList reviews={list} facets={facets} facetName="professor" linkFor={linkFor} />
 
       {sameDept.length > 0 && (
-        <section className="mt-16 border-t border-line pt-6">
-          <h2 className="text-base font-semibold">Other {c.dept} courses</h2>
-          <p className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+        <section className="mt-14 text-sm">
+          <h2 className="mb-2 text-muted">Other {c.dept} courses</h2>
+          <p className="flex flex-wrap gap-x-4 gap-y-1">
             {sameDept.map((x) => (
-              <Link key={x.code} href={`/c/${courseSlug(x.code)}/`} className="font-display text-sm font-semibold text-accent hover:underline">
+              <Link key={x.code} href={`/c/${courseSlug(x.code)}/`} className="text-accent hover:underline">
                 {x.code}
               </Link>
             ))}
